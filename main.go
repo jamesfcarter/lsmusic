@@ -39,13 +39,8 @@ type ServeDir string
 
 func sortName(name string) string {
 	name = strings.ToLower(name)
-	for _, prefix := range []string{"the"} {
-		prefixSpace := prefix + " "
-		if !strings.HasPrefix(name, prefixSpace) {
-			continue
-		}
-		name = strings.TrimPrefix(name, prefixSpace) + ", " + prefix
-	}
+	name = strings.TrimPrefix(name, "the ")
+	name = strings.TrimSpace(name)
 	return name
 }
 
