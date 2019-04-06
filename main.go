@@ -24,7 +24,7 @@ type ByArtist []Artist
 func (a ByArtist) Len() int      { return len(a) }
 func (a ByArtist) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a ByArtist) Less(i, j int) bool {
-	return strings.ToLower(a[i].Name) < strings.ToLower(a[j].Name)
+	return sortName(a[i].Name) < sortName(a[j].Name)
 }
 
 type ByName []string
@@ -32,10 +32,22 @@ type ByName []string
 func (a ByName) Len() int      { return len(a) }
 func (a ByName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a ByName) Less(i, j int) bool {
-	return strings.ToLower(a[i]) < strings.ToLower(a[j])
+	return sortName(a[i]) < sortName(a[j])
 }
 
 type ServeDir string
+
+func sortName(name string) string {
+	name = strings.ToLower(name)
+	for _, prefix := range []string{"the"} {
+		prefixSpace := prefix + " "
+		if !strings.HasPrefix(name, prefixSpace) {
+			continue
+		}
+		name = strings.TrimPrefix(name, prefixSpace) + ", " + prefix
+	}
+	return name
+}
 
 func formatName(name string) string {
 	return name
