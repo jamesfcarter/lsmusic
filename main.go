@@ -56,6 +56,13 @@ func sortName(name string) string {
 	return name
 }
 
+func sortName(name string) string {
+	name = strings.ToLower(name)
+	name = strings.TrimPrefix(name, "the ")
+	name = strings.TrimSpace(name)
+	return name
+}
+
 func formatName(name string) string {
 	return name
 }
