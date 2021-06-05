@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/dhowden/tag"
 )
@@ -24,7 +27,7 @@ type ByArtist []Artist
 func (a ByArtist) Len() int      { return len(a) }
 func (a ByArtist) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a ByArtist) Less(i, j int) bool {
-	return strings.ToLower(a[i].Name) < strings.ToLower(a[j].Name)
+	return sortName(a[i].Name) < sortName(a[j].Name)
 }
 
 type ByName []string
@@ -32,10 +35,26 @@ type ByName []string
 func (a ByName) Len() int      { return len(a) }
 func (a ByName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a ByName) Less(i, j int) bool {
-	return strings.ToLower(a[i]) < strings.ToLower(a[j])
+	return sortName(a[i]) < sortName(a[j])
 }
 
-type ServeDir string
+type ServeDir struct {
+	dir     string
+	content string
+	sync.Mutex
+}
+
+func sortName(name string) string {
+	name = strings.ToLower(name)
+	for _, prefix := range []string{"the"} {
+		prefixSpace := prefix + " "
+		if !strings.HasPrefix(name, prefixSpace) {
+			continue
+		}
+		name = strings.TrimPrefix(name, prefixSpace) + ", " + prefix
+	}
+	return name
+}
 
 func formatName(name string) string {
 	return name
@@ -110,15 +129,35 @@ func loadArtists(dir string) []Artist {
 	return artists
 }
 
-func (dir ServeDir) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	artists := loadArtists(string(dir))
+func (sd *ServeDir) build() {
+	var buf bytes.Buffer
+
+	artists := loadArtists(sd.dir)
 	for _, artist := range artists {
-		fmt.Fprintln(w, artist.Name)
+		fmt.Fprintln(&buf, artist.Name)
 		for _, disc := range artist.Discs {
-			fmt.Fprintf(w, "    %s\n", disc)
+			fmt.Fprintf(&buf, "    %s\n", disc)
 		}
-		fmt.Fprintln(w, "")
+		fmt.Fprintln(&buf, "")
 	}
+	sd.Lock()
+	sd.content = buf.String()
+	sd.Unlock()
+}
+
+func (sd *ServeDir) builder() {
+	for {
+		time.Sleep(6 * time.Hour)
+		sd.build()
+	}
+}
+
+func (sd *ServeDir) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	sd.Lock()
+	content := sd.content
+	sd.Unlock()
+
+	w.Write([]byte(content))
 }
 
 func main() {
@@ -126,5 +165,11 @@ func main() {
 	addr := flag.String("addr", ":2002", "Address to serve")
 	flag.Parse()
 
-	log.Fatal(http.ListenAndServe(*addr, ServeDir(*dir)))
+	sd := &ServeDir{
+		dir: *dir,
+	}
+	sd.build()
+	go sd.builder()
+
+	log.Fatal(http.ListenAndServe(*addr, sd))
 }
